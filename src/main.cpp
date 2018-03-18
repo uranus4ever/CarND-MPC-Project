@@ -98,8 +98,35 @@ int main() {
           * Both are in between [-1, 1].
           *
           */
-          double steer_value;
-          double throttle_value;
+
+          // Transform waypoints coordinate from map to vehicle
+          Eigen::MatrixXd waypoints(2, ptsx.size());
+          for(unsigned int i = 0; i < ptsx.size(); i++){
+            waypoints(0, i) = cos(psi) * (ptsx[i] - px) + sin(psi) * (ptsy[i] - py);
+            waypoints(1, i) = -sin(psi) * (ptsx[i] - px) + cos(psi) * (ptsy[i] - py);
+          }
+
+          Eigen::VectorXd waypts_x = waypoints.row(0);
+          Eigen::VectorXd waypts_y = waypoints.row(1);
+
+          // polynomial fit 3rd order
+          auto coeffs = polyfit(waypts_x, waypts_y, 3);
+
+          // The cross-track-error is calculated as f(x) at x
+          double cte = polyeval(coeffs, 0);
+          // Due to the sign starting at 0, the orientation error is -f'(x)
+          double epsi = -atan(coeffs[1]);
+
+          // State in vehicle coordinate, px, py, psi are always 0.
+          Eigen::VectorXd state(6);
+          state << px, py, psi, v, cte, epsi;
+
+          // Solve MPC
+          auto vars = mpc.Solve(state, coeffs);
+
+          double steer_value = vars[0];
+          double throttle_value = vars[1];
+
 
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
@@ -113,7 +140,10 @@ int main() {
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Green line
-
+          for (size_t i=2; i < vars.size(); i=i+2) { //the first two are steer angle and throttle value
+            mpc_x_vals.push_back(vars[i]);
+            mpc_y_vals.push_back(vars[i+1]);
+          }
           msgJson["mpc_x"] = mpc_x_vals;
           msgJson["mpc_y"] = mpc_y_vals;
 
@@ -123,6 +153,11 @@ int main() {
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
           // the points in the simulator are connected by a Yellow line
+
+          for(unsigned int i = 0; i < waypts_x.size(); i++){
+            next_x_vals.push_back(waypts_x(i));
+            next_y_vals.push_back(waypts_y(i));
+          }
 
           msgJson["next_x"] = next_x_vals;
           msgJson["next_y"] = next_y_vals;
