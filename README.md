@@ -1,6 +1,5 @@
 ﻿# Autonomous Driving with Model Predictive Control
 
----
 
 ## Objective
 
@@ -30,7 +29,35 @@ a : acceleration (including throttle and break)
 
 ![MPC loop][img1]
 
----
+### Timestep and Elasped Duration (N & dt)
+
+ - N = 10 
+ - dt = 0.1 s
+
+The time horizon **(T)** is the duration over which future predictions are made.
+```
+T = N * dt
+```
+T should be as large as possible. However, the smaller dt is preferred for finer resolution. And larger N isn't always better due to computational time. Hence it is a trade-off.
+
+### Polynomial Fitting and MPC Preprocessing
+
+The reference way points are given in the map global coordinate, and they are transferred into the car's coordinate. And then a 3rd order polynomial is fitted to way points.
+
+### Model Predictive Control with Latency
+
+In reality, no actuctor could execute command instaly - there will be a delay as the command propagates through the system. A realistic delay might be 100 milliseconds, as set into the project.
+
+```
+const double latency = 0.1;
+double v_act = v * 0.44704; // convert from mph to m/s
+const double px_act = 0 + v * cos(0) * latency; // px=0, due to car coordinate system
+const double py_act = 0 + v * sin(0) * latency; // py=0 and y is point to the left of the car
+const double psi_act = 0 - v_act / Lf * steering_angle * latency; // psi=0, due to car coordinate
+const double cte_act = cte + v_act * sin(epsi) * latency;
+const double epsi_act = epsi + psi_act;
+v_act += throttle * latency;
+```
 
 ## Dependencies
 
