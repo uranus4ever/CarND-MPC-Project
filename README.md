@@ -7,6 +7,11 @@ This project is to use Model Predictive Control (MPC) to drive a car in a simula
 
 In this project, the MPC optimize the actuators (steering and throttle), simulate the vehicle trajactory, and minimize the cost like cross-track error.
 
+*Yellow line - polynomial reference way points* 
+*Green line - MPC trajectory path*
+
+![GIF][gif]
+
 ## System Introduction
 ### Kinematic model
 A kinematic model is implemented to control the vehicle around the track. Kinematic models are simplifications of dynamic models that ignore tire forces, gravity, and mass. This simplification reduces the accuracy of the models, but it also makes them more tractable.
@@ -46,17 +51,19 @@ The reference way points are given in the map global coordinate, and they are tr
 
 ### Model Predictive Control with Latency
 
-In reality, no actuctor could execute command instaly - there will be a delay as the command propagates through the system. A realistic delay might be 100 milliseconds, as set into the project.
+In reality, no actuctor could execute command instaly - there will be a delay as the command propagates through the system. A realistic delay might be 100 milliseconds, as set into the project. The following codes deal with the latency issue.
 
 ```
-const double latency = 0.1;
-double v_act = v * 0.44704; // convert from mph to m/s
-const double px_act = 0 + v * cos(0) * latency; // px=0, due to car coordinate system
-const double py_act = 0 + v * sin(0) * latency; // py=0 and y is point to the left of the car
-const double psi_act = 0 - v_act / Lf * steering_angle * latency; // psi=0, due to car coordinate
-const double cte_act = cte + v_act * sin(epsi) * latency;
+const double latency = 0.1;  // 100 ms
+const double px_act = v * latency;
+const double py_act = 0;
+const double psi_act = - v * steering_angle * latency / Lf;
+const double v_act = v + throttle * latency;
+const double cte_act = cte + v * sin(epsi) * latency;
 const double epsi_act = epsi + psi_act;
-v_act += throttle * latency;
+// State in vehicle coordinate.
+Eigen::VectorXd state(6);
+state << px_act, py_act, psi_act, v_act, cte_act, epsi_act;
 ```
 
 ## Dependencies
@@ -96,3 +103,4 @@ v_act += throttle * latency;
 
 [//]: # (Image References)
 [img1]: ./extra/MPC_loop.PNG
+[gif]: ./extra/gif_1.gif
