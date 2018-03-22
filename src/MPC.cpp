@@ -6,18 +6,18 @@
 using CppAD::AD;
 
 // TODO: Set the timestep length and duration
-size_t N = 10;
-double dt = 0.12;
-unsigned int latency = 0.1 / dt; // 100ms / dt
+const size_t N = 10;
+//double dt = 0.1;
+//unsigned int latency = 0.1 / dt; // 100ms / dt
 
 // Weight parameters
-double weight_cte = 1;
-double weight_epsi = 50;
+double weight_cte = 2;
+double weight_epsi = 20;
 double weight_refv = 1;
-double weight_delta = 100;
-double weight_a = 10;
-double weight_delta_gap = 500;
-double weight_a_gap = 50;
+double weight_delta = 10000;
+double weight_a = 20;
+double weight_delta_gap = 0;
+double weight_a_gap = 0;
 
 // This value assumes the model presented in the classroom is used.
 //
@@ -29,11 +29,11 @@ double weight_a_gap = 50;
 // presented in the classroom matched the previous radius.
 //
 // This is the length from front to CoG that has a similar radius.
-const double Lf = 2.67;
+//const double Lf = 2.67;
 
 // Both reference cte and orientation errors are 0.
-// The reference velocity is set to 40 mph.
-double ref_v = 40.0;
+// The reference velocity is set to 50 mph.
+double ref_v = 50.0;
 
 size_t x_start = 0;
 size_t y_start = x_start + N;
@@ -113,14 +113,13 @@ class FG_eval {
       AD<double> delta0 = vars[delta_start + t - 1];
       AD<double> a0 = vars[a_start + t - 1];
 
-      // Consider actuator latency
-      if (t > latency){
-        delta0 = vars[delta_start + t - 1 - latency];
-        a0 = vars[a_start + t - 1 - latency];
-      }
 
       // Reference line function f(x) and psi at time t.
-      AD<double> f0 = coeffs[0] + coeffs[1] * x0 + coeffs[2] * x0 * x0 + coeffs[3] * x0 * x0 * x0;
+      AD<double> f0 = 0.0;
+      for (int i = 0; i < coeffs.size(); i++) {
+        f0 += coeffs[i] * CppAD::pow(x0, i);
+      }
+      // f'(x0)
       AD<double> psides0 = CppAD::atan(coeffs[1] + 2 * coeffs[2] * x0 + 3 * coeffs[3] * x0 * x0);
 
       // Here's `x` to get you started.
@@ -163,12 +162,12 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   // TODO: Set the number of constraints
   size_t n_constraints = 6 * N;
 
-  double x    = state[0];
-  double y    = state[1];
-  double psi  = state[2];
-  double v    = state[3];
-  double cte  = state[4];
-  double epsi = state[5];
+  const double x    = state[0];
+  const double y    = state[1];
+  const double psi  = state[2];
+  const double v    = state[3];
+  const double cte  = state[4];
+  const double epsi = state[5];
 
   // Initial value of the independent variables.
   // SHOULD BE 0 besides initial state.
@@ -196,8 +195,8 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   // Set all non-actuators upper and lowerlimits
   // to the max negative and positive values.
   for (unsigned int i = 0; i < delta_start; i++) {
-    vars_lowerbound[i] = -1.0e19;
-    vars_upperbound[i] = 1.0e19;
+    vars_lowerbound[i] = -1.0e3;
+    vars_upperbound[i] = 1.0e3;
   }
 
   // The upper and lower limits of delta are set to -25 and 25
@@ -272,7 +271,8 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
 
   // Cost
   auto cost = solution.obj_value;
-  std::cout << "Cost " << cost << std::endl;
+  std::cout << " --- "  << std::endl;
+  std::cout << "Cost = " << cost << std::endl;
 
   // TODO: Return the first actuator values. The variables can be accessed with
   // `solution.x[i]`.
@@ -280,14 +280,15 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   // {...} is shorthand for creating a vector, so auto x1 = {1.0,2.0}
   // creates a 2 element double vector.
 
+  this->mpc_x = {};
+  this->mpc_y = {};
+  for (unsigned int i = 0; i < N; i++) {
+    this->mpc_x.push_back(solution.x[x_start + i]);
+    this->mpc_y.push_back(solution.x[y_start + i]);
+  }
   vector<double> result;
   // Push back actuator state.
   result.push_back(solution.x[delta_start]);
   result.push_back(solution.x[a_start]);
-  // Push back predicted waypoints
-  for(unsigned int t = 0; t < N-1; t++){
-    result.push_back(solution.x[x_start + t + 1]);
-    result.push_back(solution.x[y_start + t + 1]);
-  }
   return result;
 }
